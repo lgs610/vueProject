@@ -13,7 +13,7 @@
 			  clearable>
 			</el-input>
 
-			<el-button size='mini' @click='toAddArticle'>添加</el-button>
+			<el-button size='mini' @click='toAddArticle("dialogForm")'>添加</el-button>
 			<el-button size='mini' @click='batchDeleteArticles'>批量删除</el-button>
 		</div>
 		<!-- 按钮区结束 -->
@@ -50,14 +50,14 @@
 		<!-- 模态框区 -->
 		<el-dialog fullscreen :title="articleDialog.title" :visible.sync="articleDialog.visible">
 			<!-- {{articleDialog.form}} -->
-		  <el-form :model="articleDialog.form" size='small' >
-		    <el-form-item label="资讯标题" label-width="120px">
+		  <el-form :model="articleDialog.form" ref='dialogForm' status-icon :rules="rules" size='small' >
+		    <el-form-item label="资讯标题" label-width="120px" prop='title'>
 		      <el-input v-model="articleDialog.form.title" autocomplete="off"></el-input>
 		    </el-form-item>
 
 		    <el-row>
 		    	<el-col :span='12'>
-		    		<el-form-item label="列表样式" label-width="120px">
+		    		<el-form-item label="列表样式" label-width="120px" prop='liststyle'>
 				      <div class="list_style">
 				      	<div class="list_one" 
 				      	:class='{current:articleDialog.form.liststyle == "style-one"}' 
@@ -74,7 +74,7 @@
 		    		
 		    	</el-col>
 		    	<el-col :span='12'>
-		    		<el-form-item label="所属栏目" label-width="120px">
+		    		<el-form-item label="所属栏目" label-width="120px" prop='category'>
 				      <el-select v-model="articleDialog.form.categoryId" placeholder="一级栏目" style="width:100%">
 				        <el-option :key='index' v-for='(c,index) in categories' :label="c.name" :value="c.id"></el-option>
 				      </el-select>
@@ -94,7 +94,7 @@
 					</el-upload>
 		    </el-form-item>
 
-				<el-form-item label="资讯正文" label-width="120px">
+				<el-form-item label="资讯正文" label-width="120px" prop='content'>
 		      <!-- <el-input
 					  type="textarea"
 					  :rows="5"
@@ -110,7 +110,7 @@
 
 		  <div slot="footer" class="dialog-footer">
 		    <el-button size='mini' @click="closeArticleDialog">取 消</el-button>
-		    <el-button size='mini' type="primary" @click='saveOrUpdateArticle'>确 定</el-button>
+		    <el-button size='mini' type="primary" @click='saveOrUpdateArticle("dialogForm")'>确 定</el-button>
 		  </div>
 		</el-dialog>
 		<!-- 模态框区结束 -->
@@ -138,7 +138,22 @@
 						fileIds:[]
 					},
 					fileList:[]
-				}
+				},
+				rules: {
+		          title: [
+		            { required: true, message: '请输入活动名称', trigger: 'blur' },
+		            { min: 2, message: '长度至少为2个字符', trigger: 'blur' }
+		          ],
+		          category: [
+		            { required: true, message: '请选择所属栏目', trigger: 'change' }
+		          ],
+		          liststyle: [
+		            { required: true, message: '请选择列表样式', trigger: 'change' }
+		          ],
+		          content: [
+		            { required: true, message: '请填写文章描述', trigger: 'blur' }
+		          ]
+		        }
 			}
 		},
 		watch:{
@@ -199,34 +214,40 @@
 				this.articleDialog.visible = false;
 			},
 			// 保存或更新文章
-			saveOrUpdateArticle(){
+			saveOrUpdateArticle(formName){
 
 				this.articleDialog.form.source = this.$refs.md.d_render;
 
 				let url = '/manager/article/saveOrUpdateArticle'
-				axios.post(url,this.articleDialog.form)
-				.then(({data:result})=>{
-					if(result.status = 200){
-						//1. 关闭模态框
-						this.closeArticleDialog();
-						//2. 提示成功
-						this.$notify({
-		          title: '成功',
-		          message: result.message,
-		          type: 'success'
-		        });
-		        //3. 刷新
-						this.findAllArticles();
+				this.$refs[formName].validate((valid) => {
+	          		if (valid) {
+						axios.post(url,this.articleDialog.form)
+						.then(({data:result})=>{
+							if(result.status = 200){
+								//1. 关闭模态框
+								this.closeArticleDialog();
+								//2. 提示成功
+								this.$notify({
+				          title: '成功',
+				          message: result.message,
+				          type: 'success'
+				        });
+				        //3. 刷新
+								this.findAllArticles();
+							} else {
+								this.$notify.error({
+				          title: '错误',
+				          message: result.message
+				        });
+							}
+						})
+						.catch((error)=>{
+							this.$notify.error({title: '错误', message: '网络异常'});
+						});
 					} else {
-						this.$notify.error({
-		          title: '错误',
-		          message: result.message
-		        });
-					}
-				})
-				.catch((error)=>{
-					this.$notify.error({title: '错误', message: '网络异常'});
-				});
+		            return false;
+		          }
+		         });
 			},
 			handlerUploadSuccess(response, file, fileList){
 				file.name = response.data.id;
@@ -254,7 +275,7 @@
 					this.$notify.error({title:'错误', message:'网络异常'})
 				})
 			},
-			toAddArticle(){
+			toAddArticle(formName){
 				this.articleDialog.fileList = [];
 				this.articleDialog.form = {
 						liststyle:'style-one',
@@ -262,6 +283,7 @@
 				};
 				this.articleDialog.title = '发布资讯';
 				this.articleDialog.visible = true;
+				this.$refs[formName].resetFields();
 			},
 			// 查询所有栏目
 			findAllCategories(){
